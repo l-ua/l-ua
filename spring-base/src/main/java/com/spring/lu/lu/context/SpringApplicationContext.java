@@ -5,6 +5,9 @@ import com.spring.lu.lu.annototaion.Component;
 import com.spring.lu.lu.annototaion.ComponentScan;
 import com.spring.lu.lu.annototaion.Scope;
 import com.spring.lu.lu.bean.BeanDefinition;
+import com.spring.lu.lu.interfaces.BeanNameAware;
+import com.spring.lu.lu.interfaces.BeanPostProcessor;
+import com.spring.lu.lu.interfaces.InitializingBean;
 import com.spring.lu.lu.util.EmptyCheckUtil;
 import com.spring.lu.lu.util.StringHelp;
 
@@ -12,9 +15,7 @@ import com.spring.lu.lu.util.StringHelp;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.net.URL;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SpringApplicationContext {
@@ -36,6 +37,8 @@ public class SpringApplicationContext {
     // 循环依赖标识
     public static Set<String> singletonsCurrennlyInCreation = new HashSet<>();
 
+    private List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>(256);
+
 
     public SpringApplicationContext(Class clazz) {
         this.clazz = clazz;
@@ -50,7 +53,7 @@ public class SpringApplicationContext {
     private void initBean() {
         for (Map.Entry<String, BeanDefinition> entry : beanName2BeanDefinitionMap.entrySet()) {
             if ("singleton".equals(entry.getValue().getScope())) {
-                Object o = getSingleton(entry.getValue());
+                getBean(entry.getValue().getBeanName());
             }
         }
     }
@@ -122,6 +125,9 @@ public class SpringApplicationContext {
                             if (null != beanName2BeanDefinitionMap.get(beanName)) {
                                 throw new RuntimeException(String.format("beanName %s is not pk ", beanName));
                             }
+
+
+
                             BeanDefinition beanDefinition = new BeanDefinition();
                             beanDefinition.setBeanName(beanName);
                             beanDefinition.setClazz(clazz);
@@ -136,6 +142,11 @@ public class SpringApplicationContext {
                             }
 
                             beanName2BeanDefinitionMap.put(beanDefinition.getBeanName(), beanDefinition);
+
+                            // 存放bean后置增强器
+                            if (BeanPostProcessor.class.isAssignableFrom(clazz)) {
+                                beanPostProcessorList.add((BeanPostProcessor) getBean(beanName));
+                            }
                         }
                     }
                 }
@@ -165,6 +176,7 @@ public class SpringApplicationContext {
 
                     Field[] declaredFields = beanClass.getDeclaredFields();
                     for (Field declaredField : declaredFields) {
+                        // 依赖注入
                         Autowired annotation = declaredField.getDeclaredAnnotation(Autowired.class);
                         // 说明属性上面有Autowired
                         if (annotation != null) {
@@ -188,11 +200,31 @@ public class SpringApplicationContext {
                     earlySingletonObjects.remove(beanName);
                     singletonFactories.remove(beanName);
 
+                    // Aware回调 beanName设置
+                    if (instanceBean instanceof BeanNameAware) {
+                        ((BeanNameAware) instanceBean).setBeanName(beanName);
+                    }
+
+                    // 初始化之前增强
+                    for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                        beanPostProcessor.postProcessBeforeInitialization(instanceBean, beanName);
+                    }
+                    // 初始化
+                    if (instanceBean instanceof InitializingBean) {
+                        ((InitializingBean) instanceBean).afterPropertiesSet();
+                    }
+                    // 初始化之后增强
+                    for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                        beanPostProcessor.postProcessAfterInitialization(instanceBean, beanName);
+                    }
+
                     return instanceBean;
 
                 } catch (InstantiationException e) {
                     e.printStackTrace();
                 } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
 
