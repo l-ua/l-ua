@@ -121,13 +121,9 @@ public class SpringApplicationContext {
                             String beanName = component.value();
                             beanName = EmptyCheckUtil.isEmpty(beanName) ? StringHelp.firstCharToLower(clazz.getSimpleName()) :
                                     beanName;
-
                             if (null != beanName2BeanDefinitionMap.get(beanName)) {
                                 throw new RuntimeException(String.format("beanName %s is not pk ", beanName));
                             }
-
-
-
                             BeanDefinition beanDefinition = new BeanDefinition();
                             beanDefinition.setBeanName(beanName);
                             beanDefinition.setClazz(clazz);
@@ -142,7 +138,6 @@ public class SpringApplicationContext {
                             }
 
                             beanName2BeanDefinitionMap.put(beanDefinition.getBeanName(), beanDefinition);
-
                             // 存放bean后置增强器
                             if (BeanPostProcessor.class.isAssignableFrom(clazz)) {
                                 beanPostProcessorList.add((BeanPostProcessor) getBean(beanName));

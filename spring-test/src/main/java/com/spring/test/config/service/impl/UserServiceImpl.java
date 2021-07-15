@@ -17,4 +17,9 @@ public class UserServiceImpl implements UserService, BeanNameAware, Initializing
     public void afterPropertiesSet() throws Exception {
         System.out.println(" InitializingBean afterPropertiesSet ");
     }
+
+    @Override
+    public void sayHi() {
+        System.out.println("say hello world");
+    }
 }
